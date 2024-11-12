@@ -1,6 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
-import { ApiError } from "./ApiError";
+import { ApiError } from "./ApiError.js";
 
 //* Configuration
 cloudinary.config({
@@ -18,11 +18,13 @@ export async function uploadOnCloudinary(localFilePath) {
             resource_type: "auto",
         });
 
+        // console.log("cloudinary response: ", response);
+
         return response;
     } catch (error) {
+        return null;
+    } finally {
         //* unlinks and removes the locally save file in server
         fs.unlinkSync(localFilePath);
-
-        return null;
     }
 }

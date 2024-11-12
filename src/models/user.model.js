@@ -66,8 +66,8 @@ userSchema.methods.isPasswordCorrect = async function (password) {
 };
 
 //* to generate ACCCESS_TOKEN
-userSchema.methods.genereateAccessToken = async function () {
-    return await jwt.sign(
+userSchema.methods.genereateAccessToken = function () {
+    return jwt.sign(
         {
             _id: this._id,
             email: this.email,
@@ -82,8 +82,8 @@ userSchema.methods.genereateAccessToken = async function () {
 };
 
 //* to generate REFERSH_TOKEN
-userSchema.methods.genereateRefreshToken = async function () {
-    return await jwt.sign(
+userSchema.methods.genereateRefreshToken = function () {
+    return jwt.sign(
         {
             _id: this._id,
         },
