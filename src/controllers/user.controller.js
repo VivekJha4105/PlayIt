@@ -361,7 +361,7 @@ export const getChannelByUsername = asyncHandler(async (req, res) => {
         },
         {
             $addFields: {
-                subscriberCount: {
+                subscribersCount: {
                     $size: "$subscribers",
                 },
                 subscribedChannelsCount: {
@@ -383,15 +383,13 @@ export const getChannelByUsername = asyncHandler(async (req, res) => {
                 email: 1,
                 "avatar.url": 1,
                 "coverImage.url": 1,
-                subscriberCount: 1,
+                subscribersCount: 1,
                 subscribedChannelsCount: 1,
             },
         },
     ]);
 
-    console.log("Channel: ", channel);
-
-    if (!channel?.length) {
+    if (!userChannel?.length) {
         throw new ApiError(401, "Channel does not exists.");
     }
 
