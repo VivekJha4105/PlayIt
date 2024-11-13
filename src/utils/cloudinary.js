@@ -18,13 +18,23 @@ export async function uploadOnCloudinary(localFilePath) {
             resource_type: "auto",
         });
 
-        // console.log("cloudinary response: ", response);
-
         return response;
     } catch (error) {
         return null;
     } finally {
         //* unlinks and removes the locally save file in server
         fs.unlinkSync(localFilePath);
+    }
+}
+
+export async function deleteFromCloudinary(publicId) {
+    try {
+        const response = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "image",
+        });
+
+        return response;
+    } catch (error) {
+        return null;
     }
 }

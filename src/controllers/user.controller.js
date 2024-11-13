@@ -1,11 +1,15 @@
 import jwt from "jsonwebtoken";
 import asyncHandler from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+    deleteFromCloudinary,
+    uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import generateTokens from "../utils/generateTokens.js";
 import { cookieOptions } from "../utils/cookieOptions.js";
+import mongoose from "mongoose";
 
 export const registerUser = asyncHandler(async (req, res) => {
     const { fullName, email, username, password } = req.body;
@@ -51,12 +55,12 @@ export const registerUser = asyncHandler(async (req, res) => {
     //* Creating and saving User in Database
     const user = await User.create({
         ...req.body,
-        avatar: avatar.url,
-        coverImage: coverImage?.url || "",
+        avatar: { url: avatar.url, publicId: avatar.public_id },
+        coverImage: { url: coverImage.url, publicId: coverImage.public_id },
     });
 
     const createdUser = await User.findById(user._id).select(
-        "-password -refreshToken"
+        "-password -refreshToken -avatar.publicId -coverImage.publicId"
     );
 
     if (!createdUser) {
@@ -101,7 +105,7 @@ export const loginUser = asyncHandler(async (req, res) => {
     const tokens = await generateTokens(registeredUser._id);
 
     const user = await User.findById(registeredUser._id).select(
-        "-password -refreshToken"
+        "-password -refreshToken -avatar.publicId -coverImage.publicId"
     );
 
     return res
@@ -121,6 +125,7 @@ export const loginUser = asyncHandler(async (req, res) => {
         );
 });
 
+//? refreshToken and accessToken reisuued to user
 export const refreshAccessToken = asyncHandler(async (req, res) => {
     const requestingRefreshToken =
         req.cookies?.refreshToken || req.body.refreshToken;
@@ -193,6 +198,7 @@ export const changePassword = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Password changed Successfully."));
 });
 
+//? Update either fullName or email, if not both
 export const updateAccount = asyncHandler(async (req, res) => {
     const { fullName: newFullName, email: newEmail } = req.body;
 
@@ -202,9 +208,11 @@ export const updateAccount = asyncHandler(async (req, res) => {
 
     const user = await User.findById(req.user._id);
 
+    //! A check to see if new field values are different than the original is set in frontend for now.
+
     //* what to update..
     if (newFullName?.length > 0 && newEmail?.length > 0) {
-        user.fullname = newFullName;
+        user.fullName = newFullName;
         user.email = newEmail;
     } else if (newFullName?.length > 0) {
         user.fullName = newFullName;
@@ -215,10 +223,9 @@ export const updateAccount = asyncHandler(async (req, res) => {
     await user.save({ validateBeforeSave: false });
 
     //* Expensive to call again but we need updated user to send to client
-    const updatedUser = await User.findOne({
-        email: newEmail,
-        fullName: newFullName,
-    });
+    const updatedUser = await User.findById(user._id).select(
+        " -password -refreshToken -avatar.publicId -coverImage.publicId"
+    );
 
     return res
         .status(200)
@@ -242,11 +249,26 @@ export const updateAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Error While Uploading Avatar to Cloudinary.");
     }
 
+    //! Destroy previously uploaded file on the cloudinary server.
+    const delelteAvatarResponse = await deleteFromCloudinary(
+        req.user?.avatar?.publicId
+    );
+
+    //? Do we want people to stop at result not being okay?
+    // if(delelteAvatarResponse?.result !== 'ok') {
+    //     throw new ApiError(500, "Error while deleting previous avatar from cloudinary server.")
+    // }
+
     const user = await User.findByIdAndUpdate(
         req.user?._id,
-        { $set: { avatar: avatar.url } },
+        {
+            $set: {
+                "avatar.url": avatar.url,
+                "avatar.publicId": avatar.public_id,
+            },
+        },
         { new: true }
-    ).select(" -password -refreshToken ");
+    ).select(" -password -refreshToken -avatar.publicId -coverImage.publicId ");
 
     if (!user) {
         throw new ApiError(500, "Error while querying Database.");
@@ -271,11 +293,23 @@ export const updateCoverImage = asyncHandler(async (req, res) => {
         );
     }
 
+    //! Destroy previously uploaded file on the cloudinary server.
+    const delelteCoverImageResponse = await deleteFromCloudinary(
+        req.user?.coverImage?.publicId
+    );
+
     const user = await User.findByIdAndUpdate(
         req.user?._id,
-        { $set: { coverImage: coverImage?.url } },
+        {
+            $set: {
+                "coverImage.url": coverImage?.url,
+                "coverImage.publicId": coverImage?.public_id,
+            },
+        },
         { new: true }
-    ).select(" -password -refreshToken ");
+    ).select(
+        " -password -refreshToken -avatar.public_id -coverImage.public_id "
+    );
     if (!user) {
         throw new ApiError(500, "Error while querying the Database.");
     }
@@ -295,4 +329,133 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
                 "Successfully fetched current user."
             )
         );
+});
+
+//? If asked username about, has a channel,
+export const getChannelByUsername = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+
+    if (!username.trim()) {
+        throw new ApiError(400, "Username is missing.");
+    }
+
+    const userChannel = await User.aggregate([
+        {
+            $match: { username: username?.toLowerCase() },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers",
+            },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo",
+            },
+        },
+        {
+            $addFields: {
+                subscriberCount: {
+                    $size: "$subscribers",
+                },
+                subscribedChannelsCount: {
+                    $size: "$subscribedTo",
+                },
+                isSubcribed: {
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false,
+                    },
+                },
+            },
+        },
+        {
+            $project: {
+                fullName: 1,
+                username: 1,
+                email: 1,
+                "avatar.url": 1,
+                "coverImage.url": 1,
+                subscriberCount: 1,
+                subscribedChannelsCount: 1,
+            },
+        },
+    ]);
+
+    console.log("Channel: ", channel);
+
+    if (!channel?.length) {
+        throw new ApiError(401, "Channel does not exists.");
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, { channel: userChannel[0] }, "Channel Info")
+        );
+});
+
+//? Watch history of logged in User
+export const getWatchHistoryOfUser = asyncHandler(async (req, res) => {
+    //! Mongoose internally doesn't handle Aggregation pipeline.
+    //! So, string _id doesn't get converted to mongooes objectId _id.
+    //! We need to make that happen explicitly.
+
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(`${req.user?._id}`),
+            },
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        $addFields: {
+                            //! rewrites existing fields
+                            owner: {
+                                $first: "$owner",
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    ]);
+
+    res.status(200).json(
+        new ApiResponse(
+            200,
+            user[0].watchHistory,
+            "watch history fetched successfully."
+        )
+    );
 });
