@@ -63,9 +63,11 @@ export const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Error while creating user in Database.");
     }
 
-    res.status(201).json(
-        new ApiResponse(201, createdUser, "User registered successfully.")
-    );
+    return res
+        .status(201)
+        .json(
+            new ApiResponse(201, createdUser, "User registered successfully.")
+        );
 });
 
 export const loginUser = asyncHandler(async (req, res) => {
@@ -166,8 +168,131 @@ export const logoutUser = asyncHandler(async (req, res) => {
         $set: { refreshToken: null },
     });
 
-    res.status(200)
+    return res
+        .status(200)
         .clearCookie("accessToken", cookieOptions)
         .clearCookie("refreshToken", cookieOptions)
-        .json(new ApiResponse(200, "User Logged out successfully."));
+        .json(new ApiResponse(200, {}, "User Logged out successfully."));
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    const isOldPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+    if (!isOldPasswordCorrect) {
+        throw new ApiError(400, "Incorrect current password.");
+    }
+
+    user.password = newPassword;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password changed Successfully."));
+});
+
+export const updateAccount = asyncHandler(async (req, res) => {
+    const { fullName: newFullName, email: newEmail } = req.body;
+
+    if (!(newFullName || newEmail)) {
+        throw new ApiError(400, "No details provided to update.");
+    }
+
+    const user = await User.findById(req.user._id);
+
+    //* what to update..
+    if (newFullName?.length > 0 && newEmail?.length > 0) {
+        user.fullname = newFullName;
+        user.email = newEmail;
+    } else if (newFullName?.length > 0) {
+        user.fullName = newFullName;
+    } else {
+        user.email = newEmail;
+    }
+
+    await user.save({ validateBeforeSave: false });
+
+    //* Expensive to call again but we need updated user to send to client
+    const updatedUser = await User.findOne({
+        email: newEmail,
+        fullName: newFullName,
+    });
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                { user: updatedUser },
+                "Account Information updated successfully."
+            )
+        );
+});
+
+export const updateAvatar = asyncHandler(async (req, res) => {
+    const avatarLocalPath = req.file?.path;
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar File not found.");
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    if (!avatar.url) {
+        throw new ApiError(500, "Error While Uploading Avatar to Cloudinary.");
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        { $set: { avatar: avatar.url } },
+        { new: true }
+    ).select(" -password -refreshToken ");
+
+    if (!user) {
+        throw new ApiError(500, "Error while querying Database.");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, user, "Avatar Updated Successfully."));
+});
+
+export const updateCoverImage = asyncHandler(async (req, res) => {
+    const coverImageLocalPath = req.file?.path;
+    if (!coverImageLocalPath) {
+        throw new ApiError(400, "Cover Image file not found.");
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    if (!coverImage?.url) {
+        throw new ApiError(
+            500,
+            "Error while uploading Cover Image to Cloudinary."
+        );
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        { $set: { coverImage: coverImage?.url } },
+        { new: true }
+    ).select(" -password -refreshToken ");
+    if (!user) {
+        throw new ApiError(500, "Error while querying the Database.");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, user, "Cover Image updated successfully."));
+});
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                { user: req.user },
+                "Successfully fetched current user."
+            )
+        );
 });
