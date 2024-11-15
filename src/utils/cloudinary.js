@@ -27,13 +27,25 @@ export async function uploadOnCloudinary(localFilePath) {
     }
 }
 
-export async function deleteFromCloudinary(publicId) {
+export async function deleteSingleFileFromCloudinary(publicId, resource_type) {
     try {
         const response = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "image",
+            resource_type: resource_type,
         });
 
+        console.log("response: ", response);
         return response;
+    } catch (error) {
+        return null;
+    }
+}
+
+//! ********** Below method doesn't delete video file for some reason...debug it..**********
+export async function deleteMultipleFilesFromCloudianry(publicIds) {
+    try {
+        const response = await cloudinary.api.delete_resources(publicIds, {
+            resouce_type: "auto",
+        });
     } catch (error) {
         return null;
     }

@@ -5,7 +5,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
-    deleteFromCloudinary,
+    deleteMultipleFilesFromCloudianry,
+    deleteSingleFileFromCloudinary,
     uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 
@@ -58,6 +59,7 @@ export const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
 
     // TODO: The below aggregation pipeline needs to be consoled and checked later on.
+    //! I Hope below pipeline is not an overkill when it comes to amount of querying info.
     const video = await Video.aggregate([
         {
             $match: {
@@ -95,7 +97,10 @@ export const getVideoById = asyncHandler(async (req, res) => {
     ]);
 
     if (!video?.length) {
-        throw new ApiError(400, "Invalid Video ID.");
+        throw new ApiError(
+            400,
+            "Invalid Video ID or Video does'nt exists anymore."
+        );
     }
 
     return res
@@ -110,7 +115,7 @@ export const updateVideoProfile = asyncHandler(async (req, res) => {
     /**
      * *Make sure client is sending both title and description. If user is not opting to change both then client should send a new and one old entry.
      */
-    if (!(newTitle || newDescription)) {
+    if (!(newTitle || newDescription || req.file?.path)) {
         throw new ApiError(400, "Details to update are missing.");
     }
 
@@ -132,7 +137,10 @@ export const updateVideoProfile = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid video ID.");
     }
 
-    await deleteFromCloudinary(videoToDeleteFrom?.thumbnail?.publicId);
+    await deleteSingleFileFromCloudinary(
+        videoToDeleteFrom?.thumbnail?.publicId,
+        "image"
+    );
 
     const video = await Video.findByIdAndUpdate(
         videoId,
@@ -158,4 +166,37 @@ export const updateVideoProfile = asyncHandler(async (req, res) => {
         .json(
             new ApiResponse(200, video, "Video profile updated successfully.")
         );
+});
+
+export const deleteVideo = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+        throw new ApiError(
+            400,
+            "Invalid video ID or video doesn't exists anymore."
+        );
+    }
+
+    //! ****** Below segment of commented code is not deleting video file even though provided publicId is correct.
+    //! ****** Debug it
+    //* Deleting Multiple Files from Cloudinary
+    // await deleteMultipleFilesFromCloudianry([
+    //     video?.videoFile.publicId,
+    //     video?.thumbnail.publicId,
+    // ]);
+
+    //* Deleting Files individually.
+
+    await deleteSingleFileFromCloudinary(video.thumbnail.publicId, "image");
+    await deleteSingleFileFromCloudinary(video.videoFile.publicId, "video");
+
+    //* Deleting video document from the database.
+    await Video.findByIdAndDelete(videoId);
+
+    res.status(200).json(
+        new ApiResponse(200, {}, "Video deleted successfully.")
+    );
 });

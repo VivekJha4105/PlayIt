@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
-    deleteFromCloudinary,
+    deleteSingleFileFromCloudinary,
     uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
@@ -246,8 +246,9 @@ export const updateAvatar = asyncHandler(async (req, res) => {
     }
 
     //! Destroy previously uploaded file on the cloudinary server.
-    const delelteAvatarResponse = await deleteFromCloudinary(
-        req.user?.avatar?.publicId
+    const delelteAvatarResponse = await deleteSingleFileFromCloudinary(
+        req.user?.avatar?.publicId,
+        "image"
     );
 
     //? Do we want people to stop at result not being okay?
@@ -290,8 +291,9 @@ export const updateCoverImage = asyncHandler(async (req, res) => {
     }
 
     //! Destroy previously uploaded file on the cloudinary server.
-    const delelteCoverImageResponse = await deleteFromCloudinary(
-        req.user?.coverImage?.publicId
+    const delelteCoverImageResponse = await deleteSingleFileFromCloudinary(
+        req.user?.coverImage?.publicId,
+        "image"
     );
 
     const user = await User.findByIdAndUpdate(
