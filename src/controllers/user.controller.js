@@ -206,33 +206,29 @@ export const updateAccount = asyncHandler(async (req, res) => {
         throw new ApiError(400, "No details provided to update.");
     }
 
-    const user = await User.findById(req.user._id);
-
     //! A check to see if new field values are different than the original is set in frontend for now.
 
-    //* what to update..
-    if (newFullName?.length > 0 && newEmail?.length > 0) {
-        user.fullName = newFullName;
-        user.email = newEmail;
-    } else if (newFullName?.length > 0) {
-        user.fullName = newFullName;
-    } else {
-        user.email = newEmail;
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                fullName: newFullName,
+                email: newEmail,
+            },
+        },
+        { new: true }
+    ).select(" -password -refreshToken ");
+
+    if (!user) {
+        throw new ApiError(400, "Invalid Refresh Token");
     }
-
-    await user.save({ validateBeforeSave: false });
-
-    //* Expensive to call again but we need updated user to send to client
-    const updatedUser = await User.findById(user._id).select(
-        " -password -refreshToken -avatar.publicId -coverImage.publicId"
-    );
 
     return res
         .status(200)
         .json(
             new ApiResponse(
                 200,
-                { user: updatedUser },
+                user,
                 "Account Information updated successfully."
             )
         );
