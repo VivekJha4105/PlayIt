@@ -200,3 +200,34 @@ export const deleteVideo = asyncHandler(async (req, res) => {
         new ApiResponse(200, {}, "Video deleted successfully.")
     );
 });
+
+export const togglePublishStatus = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    const video = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set: {
+                isPublished: !"$isPublished",
+            },
+        },
+        { new: true }
+    );
+
+    if (!video) {
+        throw new ApiError(
+            400,
+            "Invalid Video ID or video does not exists anymore."
+        );
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                video,
+                "Published status updated successfully."
+            )
+        );
+});
