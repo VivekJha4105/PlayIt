@@ -40,7 +40,7 @@ router.route("/login").post(loginUser);
 router.route("/token-refresh").post(refreshAccessToken);
 
 //! ==>> Below Routes need Authorization:
-router.route("/current-user").post(verifyJWT, getCurrentUser);
+router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/password-reset").post(verifyJWT, changePassword);
 
 //* Updates either fullName or email, if not both

@@ -9,6 +9,7 @@ import {
     deleteSingleFileFromCloudinary,
     uploadOnCloudinary,
 } from "../utils/cloudinary.js";
+import { User } from "../models/user.model.js";
 
 export const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -74,14 +75,6 @@ export const getVideoById = asyncHandler(async (req, res) => {
                 as: "owner",
                 pipeline: [
                     {
-                        $lookup: {
-                            from: "videos",
-                            localField: "watch history",
-                            foreignField: "_id",
-                            as: "watchHistory",
-                        },
-                    },
-                    {
                         $project: {
                             fullName: 1,
                             email: 1,
@@ -94,18 +87,32 @@ export const getVideoById = asyncHandler(async (req, res) => {
                 ],
             },
         },
+        {
+            $addFields: {
+                owner: {
+                    $first: "$owner",
+                },
+            },
+        },
     ]);
 
-    if (!video?.length) {
-        throw new ApiError(
-            400,
-            "Invalid Video ID or Video does'nt exists anymore."
-        );
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+        throw new ApiError(500, "Error while interacting with database.");
     }
+
+    const newWatchHistory = user.watchHistory.filter(
+        (item) => item.toString() !== videoId
+    );
+
+    user.watchHistory = newWatchHistory;
+    user.watchHistory.unshift(videoId);
+
+    await user.save();
 
     return res
         .status(200)
-        .json(new ApiResponse(200, video, "Video fetched successfully."));
+        .json(new ApiResponse(200, video[0], "Video fetched successfully."));
 });
 
 export const updateVideoProfile = asyncHandler(async (req, res) => {
