@@ -59,8 +59,7 @@ export const uploadVideo = asyncHandler(async (req, res) => {
 export const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
 
-    // TODO: The below aggregation pipeline needs to be consoled and checked later on.
-    //! I Hope below pipeline is not an overkill when it comes to amount of querying info.
+    //! Below video has the owner field filled.
     const video = await Video.aggregate([
         {
             $match: {
@@ -96,6 +95,7 @@ export const getVideoById = asyncHandler(async (req, res) => {
         },
     ]);
 
+    //* Updating watch history
     const user = await User.findById(req.user?._id);
     if (!user) {
         throw new ApiError(500, "Error while interacting with database.");

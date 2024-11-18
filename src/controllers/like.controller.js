@@ -8,7 +8,7 @@ export const toggleLikeOnVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.body;
 
     if (!videoId) {
-        throw new ApiError(400, "Parameters are missing.");
+        throw new ApiError(400, "Input Parameters are missing.");
     }
 
     //* If document already exists(i.e video is liked) then delete the document and return an empty object.
@@ -52,7 +52,7 @@ export const toggleLikeOnVideo = asyncHandler(async (req, res) => {
 export const toggleLikeOnComment = asyncHandler(async (req, res) => {
     const { commentId } = req.body;
     if (!commentId) {
-        throw new ApiError(400, "Parameters are missing.");
+        throw new ApiError(400, "Input Parameters are missing.");
     }
 
     //* If document already exists(i.e comment is liked) then delete the document and return an empty object.

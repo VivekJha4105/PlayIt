@@ -8,7 +8,7 @@ export const getVideoComments = asyncHandler(async (req, res) => {
     const { videoId } = req.body;
 
     if (!videoId) {
-        throw new ApiError(400, "Parameters are missing.");
+        throw new ApiError(400, "Input Parameters are missing.");
     }
 
     const comments = await Comment.aggregate([
@@ -82,7 +82,7 @@ export const addComment = asyncHandler(async (req, res) => {
     const { videoId, content } = req.body;
 
     if (!(videoId && content)) {
-        throw new ApiError(400, "Parameters are missing.");
+        throw new ApiError(400, "Input Parameters are missing.");
     }
 
     const comment = await Comment.create({
@@ -105,7 +105,7 @@ export const updateComment = asyncHandler(async (req, res) => {
     const { commentId, content } = req.body;
 
     if (!content) {
-        throw new ApiError(400, "Parameters are missing.");
+        throw new ApiError(400, "Input Parameters are missing.");
     }
 
     const comment = await Comment.findByIdAndUpdate(
@@ -134,7 +134,7 @@ export const deleteComment = asyncHandler(async (req, res) => {
     const { commentId } = req.body;
 
     if (!commentId) {
-        throw new ApiError(400, "Parameters are missing.");
+        throw new ApiError(400, "Input Parameters are missing.");
     }
 
     await Comment.findByIdAndDelete(commentId);
